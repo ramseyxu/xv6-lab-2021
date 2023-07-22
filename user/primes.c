@@ -12,6 +12,7 @@ panic(char *s)
   exit(1);
 }
 
+__attribute__((noreturn))
 void receive_and_send(int *p) {
     // printf("create pid=%d\n", getpid());
     int x,y;
