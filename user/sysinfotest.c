@@ -98,6 +98,7 @@ void testproc() {
   
   sinfo(&info);
   nproc = info.nproc;
+  printf("first time nproc=%d\n", nproc);
 
   pid = fork();
   if(pid < 0){
@@ -106,6 +107,7 @@ void testproc() {
   }
   if(pid == 0){
     sinfo(&info);
+    printf("second time nproc=%d\n", info.nproc);
     if(info.nproc != nproc+1) {
       printf("sysinfotest: FAIL nproc is %d instead of %d\n", info.nproc, nproc+1);
       exit(1);
