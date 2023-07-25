@@ -292,6 +292,9 @@ fork(void)
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
+  // copy mask from parent process
+  np->mask = p->mask;
+
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
 
