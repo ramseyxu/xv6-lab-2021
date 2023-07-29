@@ -466,3 +466,22 @@ vmprint(pagetable_t pgtable)
   printf("page table %p\n", pgtable);
   pagetable_print_walk(pgtable, 1);
 }
+
+int
+pgaccess(pagetable_t pgtable, uint64 va, int page_num, uint64 out_buf)
+{
+  int bitmask = 0;
+  for (int i = 0; i < page_num && i < 32; i++){
+    pte_t *pte = walk(pgtable, va + i * PGSIZE, 0);
+    if (pte == 0) {
+      continue;
+    }
+
+    if (*pte & PTE_A)
+      bitmask |= 1 << i;
+    *pte &= ~PTE_A;
+  }
+  if (copyout(pgtable, out_buf, (char *)&bitmask, sizeof(int)) < 0)
+    return -1;
+  return 0;
+}
