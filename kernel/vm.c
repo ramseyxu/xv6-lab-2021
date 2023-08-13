@@ -15,6 +15,9 @@ extern char etext[];  // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
 
+void
+pagetable_print_walk(pagetable_t pagetable, int level);
+
 // Make a direct-map page table for the kernel.
 pagetable_t
 kvmmake(void)
@@ -178,6 +181,7 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       panic("uvmunmap: not mapped");
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
+    // printf("uvmunmap: va=%p pte=%p\n", a, *pte);
     if(do_free){
       uint64 pa = PTE2PA(*pte);
       kfree((void*)pa);
@@ -316,7 +320,13 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
         return -1;
     }
+
+    pte_t *new_pte;
+    new_pte = walk(new, i, 0);
+    flags = PTE_FLAGS(*new_pte);
+    // printf("make cow page va %p pte %p %p pa %p\n", i, *pte, *new_pte, pa);
   }
+//   pagetable_print_walk(new, 0);
   return 0;
 }
 
@@ -426,15 +436,44 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   }
 }
 
+void
+print_pte(int idx, pte_t pte, int level)
+{
+  for (int j = 0; j < level; j++) {
+    printf(".. ");
+  }
+  printf("%d: pte %p pa %p\n", idx, pte, PTE2PA(pte));
+}
+
+void
+pagetable_print_walk(pagetable_t pagetable, int level)
+{
+  // there are 2^9 = 512 PTEs in a page table.
+  printf("pagetable %p\n", pagetable);
+  for(int i = 0; i < 512; i++){
+    pte_t pte = pagetable[i];
+    if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
+      // this PTE points to a lower-level page table.
+      uint64 child = PTE2PA(pte);
+
+      print_pte(i, pte, level);
+      pagetable_print_walk((pagetable_t)child, level+1);
+    } else if(pte & PTE_V){
+      print_pte(i, pte, level);
+    }
+  }
+}
+
 int
 handle_cow_pagefault(pagetable_t pagetable, uint64 va)
 {
+    printf("handle_cow_pgflt: va %p\n", va);
     pte_t *pte;
     char *mem;
     if ((pte = walk(pagetable, va, 0)) == 0)
         panic("handle_cow_pagefault: pte should exist");
     
-    if ((*pte &= PTE_COW) == 0)
+    if ((*pte & PTE_COW) == 0)
         panic("handle_cow_pagefault: page is not valid");
 
     *pte |= PTE_W;
@@ -445,8 +484,11 @@ handle_cow_pagefault(pagetable_t pagetable, uint64 va)
         return -1;
     }
 
-    uint64 pa = PTE2PA(*pte);    
+    uint64 pa = PTE2PA(*pte);
+    print_pte(0, *pte, 0);
+    // pagetable_print_walk(pagetable, 0);
     memmove(mem, (char*)pa, PGSIZE);
+    uvmunmap(pagetable, va, 1, 0);
     if(mappages(pagetable, va, PGSIZE, (uint64)mem, flags) != 0){
         panic("handle_cow_pagefault: mappages fail");
     }
