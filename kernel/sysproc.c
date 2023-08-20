@@ -95,3 +95,10 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_free_page(void)
+{
+  get_free_page_cnt();
+  return 0;
+}

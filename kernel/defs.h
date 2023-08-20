@@ -61,8 +61,11 @@ void            ramdiskrw(struct buf*);
 
 // kalloc.c
 void*           kalloc(void);
-void            kfree(void *);
+int             kfree(void *);
 void            kinit(void);
+void            kref(void *);
+int             dec_ref_if_greater_than_one(void *pa);
+void            get_free_page_cnt();
 
 // log.c
 void            initlog(int, struct superblock*);

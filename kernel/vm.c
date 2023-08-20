@@ -314,6 +314,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
+    kref((void *)pa);
     *pte &= ~PTE_W;
     *pte |= PTE_COW;
     flags = PTE_FLAGS(*pte);
@@ -353,6 +354,13 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+    pte_t *pte = walk(pagetable, va0, 0);
+    if ((*pte & PTE_COW) && (*pte & PTE_W) == 0) {
+      if (handle_cow_pagefault(pagetable, va0)) {
+        printf("copyout: handle cow pagefault failed\n");
+        return -1;
+      }
+    }
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
@@ -467,7 +475,7 @@ pagetable_print_walk(pagetable_t pagetable, int level)
 int
 handle_cow_pagefault(pagetable_t pagetable, uint64 va)
 {
-    printf("handle_cow_pgflt: va %p\n", va);
+    // printf("handle_cow_pgflt: va %p\n", va);
     pte_t *pte;
     char *mem;
     if ((pte = walk(pagetable, va, 0)) == 0)
@@ -478,14 +486,19 @@ handle_cow_pagefault(pagetable_t pagetable, uint64 va)
 
     *pte |= PTE_W;
     *pte &= ~PTE_COW;
+    uint64 pa = PTE2PA(*pte);
+
+    // if dec ref == 0, then this page only one ref, no need to copy
+    if (dec_ref_if_greater_than_one((void *)pa) == 0)
+      return 0;
+
     int flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0) {
         printf("handle_cow_pagefault: kalloc fail\n");
         return -1;
     }
 
-    uint64 pa = PTE2PA(*pte);
-    print_pte(0, *pte, 0);
+    // print_pte(0, *pte, 0);
     // pagetable_print_walk(pagetable, 0);
     memmove(mem, (char*)pa, PGSIZE);
     uvmunmap(pagetable, va, 1, 0);

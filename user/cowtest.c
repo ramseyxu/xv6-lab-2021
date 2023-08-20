@@ -180,15 +180,21 @@ filetest()
 int
 main(int argc, char *argv[])
 {
+  // free_page();
   simpletest();
 
   // check that the first simpletest() freed the physical memory.
+  // free_page();
   simpletest();
 
+  // free_page();
   threetest();
+  // free_page();
   threetest();
+  // free_page();
   threetest();
 
+  // free_page();
   filetest();
 
   printf("ALL COW TESTS PASSED\n");
