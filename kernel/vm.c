@@ -354,7 +354,14 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+    // if (va0 == KERNBASE) {
+    //   pagetable_print_walk(pagetable, 0);
+    // }
+    if (va0 >= MAXVA)
+      return -1;
     pte_t *pte = walk(pagetable, va0, 0);
+    if (pte == 0)
+      return -1;
     if ((*pte & PTE_COW) && (*pte & PTE_W) == 0) {
       if (handle_cow_pagefault(pagetable, va0)) {
         printf("copyout: handle cow pagefault failed\n");
@@ -478,6 +485,10 @@ handle_cow_pagefault(pagetable_t pagetable, uint64 va)
     // printf("handle_cow_pgflt: va %p\n", va);
     pte_t *pte;
     char *mem;
+
+    if (va >= MAXVA)
+      return -1;
+
     if ((pte = walk(pagetable, va, 0)) == 0)
         panic("handle_cow_pagefault: pte should exist");
     
@@ -494,7 +505,8 @@ handle_cow_pagefault(pagetable_t pagetable, uint64 va)
 
     int flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0) {
-        printf("handle_cow_pagefault: kalloc fail\n");
+        kref((void *)pa); // need to inc ref count back, for the page is not copied
+        // printf("handle_cow_pagefault: kalloc fail\n");
         return -1;
     }
 

@@ -73,14 +73,12 @@ usertrap(void)
     // printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     uint64 stval = r_stval();
     if (handle_cow_pagefault(p->pagetable, PGROUNDDOWN(stval)) == -1) {
-      printf("handle cow page failed\n");
+      // printf("handle cow page failed\n");
       p->killed = 1;
     }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    if (p->pid == 1)
-      handle_cow_pagefault(p->pagetable, PGROUNDDOWN(r_stval()));
     p->killed = 1;
   }
 

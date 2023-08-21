@@ -26,6 +26,7 @@ extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
 
 int free_Pages = 0;
+int inited = 0;
 
 struct run {
   struct run *next;
@@ -41,6 +42,7 @@ kinit()
 {
   initlock(&kmem.lock, "kmem");
   freerange(end, (void*)PHYSTOP);
+  inited = 1;
 }
 
 void
@@ -62,6 +64,8 @@ int
 kfree(void *pa)
 {
   // printf("kfree: %p\n", pa);
+  // if ((uint64)pa == 0x0000000080519000L)
+  //   printf("kfree 0x0000000080519000\n");
   struct run *r;
 
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
@@ -89,6 +93,10 @@ kfree(void *pa)
   r->next = kmem.freelist;
   kmem.freelist = r;
   free_Pages += 1;
+  if (get_pa_ref(pa) != 0) {
+    printf("panic pa %p\n", pa);
+    panic("kfree: ref count is not 0");
+  }
   release(&kmem.lock);
   return 1;
 }
@@ -106,8 +114,10 @@ kalloc(void)
   if(r) {
     kmem.freelist = r->next;
     add_pa_ref(r);
-    if (get_pa_ref(r) != 1)
+    if (get_pa_ref(r) != 1) {
+      printf("panic pa %p cnt %d\n", r, get_pa_ref(r));
       panic("kalloc: ref count is not 1");
+    }
     free_Pages -= 1;
   }
   release(&kmem.lock);
@@ -115,6 +125,8 @@ kalloc(void)
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   // printf("kalloc: %p\n", r);
+  // if ((uint64)r == 0x0000000080519000L)
+  //   printf("kalloc 0x0000000080519000\n");
   return (void*)r;
 }
 
@@ -123,6 +135,10 @@ void kref(void *pa) {
     panic("kref");
 
   acquire(&kmem.lock);
+  if (inited && get_pa_ref(pa) == 0) {
+    printf("panic pa %p\n", pa);
+    panic("kref: ref count is 0");
+  }
   add_pa_ref(pa);
   release(&kmem.lock);
   // printf("kref: %p\n", pa);

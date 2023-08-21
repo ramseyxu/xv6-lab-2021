@@ -281,7 +281,7 @@ fork(void)
     return -1;
   }
 
-  printf("fork pid %d newpid %d\n", p->pid, np->pid);
+  // printf("fork pid %d newpid %d\n", p->pid, np->pid);
 
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
