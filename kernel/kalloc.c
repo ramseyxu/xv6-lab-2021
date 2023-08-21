@@ -11,10 +11,20 @@
 
 void freerange(void *pa_start, void *pa_end);
 
+uint8 pa_ref[(PHYSTOP - KERNBASE) / PGSIZE + 1];
+void add_pa_ref(void *pa) {
+  pa_ref[(uint64)(pa - KERNBASE) / PGSIZE] += 1;
+}
+void dec_pa_ref(void *pa) {
+  pa_ref[(uint64)(pa - KERNBASE) / PGSIZE] -= 1;
+}
+int get_pa_ref(void *pa) {
+  return pa_ref[(uint64)(pa - KERNBASE) / PGSIZE];
+}
+
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
 
-int pa_ref[(PHYSTOP - KERNBASE) / PGSIZE + 1];
 int free_Pages = 0;
 
 struct run {
@@ -58,15 +68,15 @@ kfree(void *pa)
     panic("kfree");
 
   acquire(&kmem.lock);
-  if (pa_ref[(uint64)pa / PGSIZE] == 0)
+  if (get_pa_ref(pa) == 0)
     panic("kfree: ref count is 0");
   
-  pa_ref[(uint64)pa / PGSIZE] -= 1;
-  if (pa_ref[(uint64)pa / PGSIZE] > 0) {
+  dec_pa_ref(pa);
+  if (get_pa_ref(pa) > 0) {
     release(&kmem.lock);
     return 0;
   }
-  if (pa_ref[(uint64)pa / PGSIZE] < 0)
+  if (get_pa_ref(pa) < 0)
     panic("kfree: ref count is negative");
   release(&kmem.lock);
 
@@ -95,7 +105,9 @@ kalloc(void)
   r = kmem.freelist;
   if(r) {
     kmem.freelist = r->next;
-    pa_ref[(uint64)r / PGSIZE] = 1;
+    add_pa_ref(r);
+    if (get_pa_ref(r) != 1)
+      panic("kalloc: ref count is not 1");
     free_Pages -= 1;
   }
   release(&kmem.lock);
@@ -111,7 +123,7 @@ void kref(void *pa) {
     panic("kref");
 
   acquire(&kmem.lock);
-  pa_ref[(uint64)pa / PGSIZE] += 1;
+  add_pa_ref(pa);
   release(&kmem.lock);
   // printf("kref: %p\n", pa);
 }
@@ -122,8 +134,8 @@ int dec_ref_if_greater_than_one(void *pa) {
 
   int decreased = 0;
   acquire(&kmem.lock);
-  if (pa_ref[(uint64)pa / PGSIZE] > 1) {
-    pa_ref[(uint64)pa / PGSIZE] -= 1;
+  if (get_pa_ref(pa) > 1) {
+    dec_pa_ref(pa);
     decreased = 1;
   }
   release(&kmem.lock);
