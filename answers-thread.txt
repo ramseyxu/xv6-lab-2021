@@ -1,0 +1,3 @@
+too easy as long as I have 8 years experience
+modify shared memory should hold lock
+otherwise there may have concurrent race
